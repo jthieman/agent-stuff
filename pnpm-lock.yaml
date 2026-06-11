@@ -30,9 +30,6 @@ importers:
 
   packages/just-bash-secure-exec:
     dependencies:
-      just-bash:
-        specifier: ^3.0.1
-        version: 3.0.1
       secure-exec:
         specifier: ^0.2.1
         version: 0.2.1
@@ -46,6 +43,9 @@ importers:
       bumpp:
         specifier: ^11.1.0
         version: 11.1.0
+      just-bash:
+        specifier: ^3.0.1
+        version: 3.0.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

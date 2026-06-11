@@ -1,0 +1,61 @@
+{
+  "name": "just-bash-secure-exec",
+  "version": "0.1.0",
+  "description": "Secure Exec-backed Node.js sandbox integration for just-bash.",
+  "keywords": [
+    "filesystem",
+    "javascript",
+    "just-bash",
+    "network-policy",
+    "node",
+    "sandbox",
+    "secure-exec"
+  ],
+  "homepage": "https://github.com/jthieman/agent-stuff/tree/main/packages/just-bash-secure-exec#readme",
+  "bugs": {
+    "url": "https://github.com/jthieman/agent-stuff/issues"
+  },
+  "license": "MIT",
+  "author": "Josh Thieman",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jthieman/agent-stuff.git",
+    "directory": "packages/just-bash-secure-exec"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "secure-exec": "^0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@typescript/native-preview": "7.0.0-dev.20260509.2",
+    "bumpp": "^11.1.0",
+    "just-bash": "^3.0.1",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "just-bash": "^3.0.1"
+  }
+}
