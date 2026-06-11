@@ -1,0 +1,16 @@
+{
+  "name": "agent-stuff",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ready": "vp check && vp run -r test && vp run -r build"
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "packageManager": "pnpm@11.5.3"
+}
