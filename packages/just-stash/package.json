@@ -1,0 +1,114 @@
+{
+  "name": "just-stash",
+  "version": "0.6.0",
+  "description": "Restorable, forkable persistence for just-bash filesystems.",
+  "homepage": "https://github.com/jthieman/agent-stuff/tree/main/packages/just-stash#readme",
+  "bugs": {
+    "url": "https://github.com/jthieman/agent-stuff/issues"
+  },
+  "license": "MIT",
+  "author": "Josh Thieman",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jthieman/agent-stuff.git",
+    "directory": "packages/just-stash"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./blob": {
+      "types": "./dist/blob.d.mts",
+      "default": "./dist/blob.mjs"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare.d.mts",
+      "default": "./dist/cloudflare.mjs"
+    },
+    "./doctor": {
+      "types": "./dist/doctor.d.mts",
+      "default": "./dist/doctor.mjs"
+    },
+    "./git": {
+      "types": "./dist/git.d.mts",
+      "default": "./dist/git.mjs"
+    },
+    "./pi": {
+      "types": "./dist/pi.d.mts",
+      "default": "./dist/pi.mjs"
+    },
+    "./postgres": {
+      "types": "./dist/postgres.d.mts",
+      "default": "./dist/postgres.mjs"
+    },
+    "./s3": {
+      "types": "./dist/s3.d.mts",
+      "default": "./dist/s3.mjs"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.mts",
+      "default": "./dist/sqlite.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "test:integration": "vp test run integration",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "tar-stream": "^3.1.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/tar-stream": "^3.1.0",
+    "@typescript/native-preview": "7.0.0-dev.20260509.2",
+    "better-sqlite3": "^11.0.0",
+    "bumpp": "^11.1.0",
+    "isomorphic-git": "^1.30.0",
+    "just-bash": "^3.0.1",
+    "pg": "catalog:",
+    "testcontainers": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": ">=3.0.0",
+    "better-sqlite3": ">=11.0.0",
+    "isomorphic-git": ">=1.30.0",
+    "just-bash": ">=3.0.0",
+    "pg": ">=8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "isomorphic-git": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  }
+}
