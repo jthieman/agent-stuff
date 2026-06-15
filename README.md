@@ -2,7 +2,11 @@
 
 Workspace for focused agent runtime packages and experiments.
 
-The main package right now is [`just-bash-secure-exec`](packages/just-bash-secure-exec), which adapts [`secure-exec`](https://secureexec.dev/) into [`just-bash`](https://www.npmjs.com/package/just-bash) as a locked-down Node.js command.
+## Packages
+
+- [`just-bash-secure-exec`](packages/just-bash-secure-exec) adapts [`secure-exec`](https://secureexec.dev/) into [`just-bash`](https://www.npmjs.com/package/just-bash) as a locked-down Node.js command.
+- [`just-stash`](packages/just-stash) provides restorable, forkable persistence for `just-bash` filesystems and sandbox working trees.
+- [`just-bash-filtered-fs`](packages/just-bash-filtered-fs) provides a path-filtering `IFileSystem` wrapper for hiding selected virtual paths from agents.
 
 ## Development
 
