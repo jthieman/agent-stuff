@@ -28,9 +28,6 @@ export type {
   ReconcileOutcome,
 } from "./wrappers/persistent-fs.ts";
 
-export { FilteredFs } from "./wrappers/filtered-fs.ts";
-export type { FilteredFsOptions } from "./wrappers/filtered-fs.ts";
-
 export { SizeLimitedFs } from "./wrappers/size-limited-fs.ts";
 export type { SizeLimitedFsOptions } from "./wrappers/size-limited-fs.ts";
 
@@ -46,10 +43,9 @@ export { MemoryBackend, InMemoryBlobStore, InMemoryMetadataStore } from "./store
 export type { BlobStore, MetadataStore } from "./stores/types.ts";
 
 // ---------------------------------------------------------------------------
-// Path filtering utilities
+// Archive path safety utilities
 // ---------------------------------------------------------------------------
 
-export { isPathExcluded, matchSegment } from "./path-filter.ts";
 export { resolveArchiveEntryPath, isSafeEntryType } from "./path-safety.ts";
 
 // ---------------------------------------------------------------------------

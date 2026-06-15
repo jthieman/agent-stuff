@@ -65,7 +65,6 @@ Agent (just-bash, AI harness)
         │ IFileSystem
         ▼
 Wrappers — composable, all implement IFileSystem
-   FilteredFs       (hide paths from agent)
    SizeLimitedFs    (cap bytes / entries)
    PersistentFs     (boot / commit / rollback / fork)
         │
@@ -257,7 +256,6 @@ If a deployment hits pgbouncer issues, switching is mechanical. The interface do
 
 ## What we punted on
 
-- **OverlayFs delta snapshots.** Every commit walks the full inner tree. Wasteful when very few files changed. Documented TODO; fix requires just-bash internal access or diff-against-baseline logic.
 - **History pruning.** Git's chain can't drop old commits without rewriting refs (breaks forks). We rely on content-dedup keeping disk costs bounded.
 - **End-to-end test against the actual harness.** All tests are just-stash's own. The first integration with the harness's `Bash`, Pi command surface, and lifecycle will reveal whatever it reveals.
 

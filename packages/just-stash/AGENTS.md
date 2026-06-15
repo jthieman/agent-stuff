@@ -25,14 +25,12 @@ packages/just-stash/
 │   ├── types.ts          SnapshotId, CommitInfo, errors (CasConflictError is load-bearing)
 │   ├── backend.ts        SnapshotBackend interface
 │   ├── walk.ts           shared walkSnapshot / clearFsContents
-│   ├── path-filter.ts    per-segment glob matching (FilteredFs)
 │   ├── path-safety.ts    archive entry path validation (tar extraction)
 │   ├── pi.ts             /snapshot, /snapshots, /rollback
 │   ├── doctor.ts         operational tools: verifyIntegrity, findOrphanBlobs, findStaleWorkspaces
 │   ├── cloudflare-artifacts.ts  REST client + GitBackend helper for Cloudflare Artifacts
 │   ├── wrappers/
 │   │   ├── persistent-fs.ts   thin SnapshotBackend wrapper
-│   │   ├── filtered-fs.ts     exclude patterns + filter callback
 │   │   └── size-limited-fs.ts byte and entry caps
 │   ├── disk/
 │   │   ├── paths.ts             path normalization and escape rejection
@@ -76,7 +74,7 @@ packages/just-stash/
 
 8. **Deterministic archive bytes.** Tar entries get `mtime: new Date(0)`. `walkSnapshot` sorts directory entries lexically before iterating — POSIX doesn't guarantee `readdir` order and we can't rely on it for content addressing.
 
-9. **`excludeFromSnapshots` is path-prefix on the snapshot walk.** Different from `FilteredFs` which hides paths from the agent.
+9. **`excludeFromSnapshots` is path-prefix on the snapshot walk.** It does not hide paths from the agent; it only controls what goes into committed snapshots.
 
 10. **WorkspaceManager enforces single-writer-per-sandbox at two layers.** In-process via a synchronously-modified `pending` set + the `active` Map (always on, closes the await-yield race). Cross-process via a lockfile (`open('wx')` + PID + mtime heartbeat + 90s TTL with PID-liveness reclaim) is **opt-in via `crossProcessLocking: true`, default off**. The default optimizes for the common single-process case; multi-process deployments must opt in.
 

@@ -144,24 +144,6 @@ The root must exist (`WorkspaceManager` creates it for you). Every operation is 
 
 Symlink creation is allowed but only with relative targets that lexically stay inside the sandbox. Pre-existing symlinks at the leaf are not followed for reads.
 
-### `FilteredFs`
-
-```typescript
-new FilteredFs(inner, {
-  exclude: [".env*", "*.pem", ".git"],
-  filter: (path) => !path.includes("credentials"),
-});
-```
-
-Hides paths from the agent. `readFile` throws `ENOENT`, `exists` returns false, `readdir` omits them, `writeFile` to an excluded path is blocked. Per-segment glob matching:
-
-| Pattern    | Matches                    |
-| ---------- | -------------------------- |
-| `.env`     | exact segment              |
-| `.env*`    | segment starts with `.env` |
-| `*.pem`    | segment ends with `.pem`   |
-| `*secret*` | segment contains `secret`  |
-
 ### `SizeLimitedFs`
 
 ```typescript
@@ -172,6 +154,8 @@ new SizeLimitedFs(inner, {
 ```
 
 Throws `ENOSPC` when a write would exceed either limit. Byte accounting is maintained incrementally for operations through the wrapper and can be recalculated after restores; treat the byte cap as a practical guardrail rather than an auditor for out-of-band filesystem mutations.
+
+Agent-visible path filtering is outside just-stash's persistence model. Use `just-bash-filtered-fs` when an agent should see only part of an `IFileSystem`.
 
 ### `PersistentFs`
 
