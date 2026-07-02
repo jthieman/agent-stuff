@@ -75,7 +75,7 @@ SnapshotBackend — the central abstraction
         │
         ▼
 Stores — pluggable halves of BlobBackend
-   InMemory  |  Sqlite (both)  |  S3 + Postgres
+   InMemory  |  Sqlite (both)  |  S3-only  |  S3 + Postgres
 ```
 
 The disk-backed working tree (DiskWorkingTree) and the pool manager (WorkspaceManager) sit above the wrappers — they're how the harness creates and manages `PersistentFs` instances at scale.
@@ -226,21 +226,38 @@ Every `MetadataStore` implementation enforces the same contract: atomic compare-
 | Store                   | Primitive               | Pattern                                                                                                                 |
 | ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `S3MetadataStore`       | conditional writes      | Read HEAD with its etag → check priorHead matches → write commit object → `PUT HEAD` with `If-Match: <etag>`            |
-| `PostgresMetadataStore` | row locks (pessimistic) | `BEGIN` → `SELECT FOR UPDATE` HEAD → check priorHead → INSERT commit + UPDATE HEAD → `COMMIT`                           |
+| `PostgresMetadataStore` | row locks (pessimistic) | `BEGIN` → `SELECT FOR UPDATE` this namespace's HEAD → check priorHead → INSERT commit + UPDATE HEAD → `COMMIT`          |
 | `SqliteStore`           | write transaction       | `BEGIN` (deferred) → SELECT HEAD → check priorHead → INSERT commit + UPDATE HEAD → `COMMIT` (whole DB is single-writer) |
 | `InMemoryMetadataStore` | event-loop atomicity    | JS is single-threaded; the check + swap runs without yielding                                                           |
 
 The S3 path is optimistic — work happens _before_ the CAS, so a true race window exists where the commit object is written but the HEAD swap fails. The doctor's `findOrphanCommits` cleans up the rare orphan that results.
 
-The Postgres and SQLite paths are pessimistic — the lock prevents any other writer from observing the in-flight state, so there is no race window and no orphan source from this path. Orphans still happen from rollbacks and external mutations, which is why `findOrphanCommits` works against all stores.
+The Postgres and SQLite paths are pessimistic — the lock prevents any other writer for that timeline from observing the in-flight state, so there is no race window and no orphan source from this path. Orphans still happen from rollbacks and external mutations, which is why `findOrphanCommits` works against all stores.
+
+### Postgres namespacing
+
+`MetadataStore` is intentionally single-timeline: methods like `readHead()` don't take a sandbox id. `PostgresMetadataStore` preserves that abstraction by scoping the store instance:
+
+```typescript
+new PostgresMetadataStore({ pool, namespace: sandboxId });
+```
+
+With the default prefix, the physical tables are shared across sandboxes:
+
+- `just_stash_heads(namespace primary key, snapshot_id)`
+- `just_stash_commits(namespace, snapshot_id, content_id, parent_id, ..., primary key(namespace, snapshot_id))`
+- `just_stash_notes(namespace, snapshot_id, note, primary key(namespace, snapshot_id))`
+
+CAS locks only the row in `just_stash_heads` for the store's namespace. Commits, notes, log traversal, `listCommitIds`, and `deleteCommit` are all namespace-scoped, so two sandboxes can use the same table set without interfering.
 
 ### Why we kept Postgres pessimistic
 
 The S3 model could be ported to Postgres via optimistic UPDATE:
 
 ```sql
-UPDATE head SET snapshot_id = $new
- WHERE snapshot_id IS NOT DISTINCT FROM $prior
+UPDATE heads SET snapshot_id = $new
+ WHERE namespace = $namespace
+   AND snapshot_id IS NOT DISTINCT FROM $prior
 ```
 
 If `rowcount === 0`, CAS failed. No row lock held during the work. Better behavior under pgbouncer's transaction-pooling mode where long-held locks cause grief.

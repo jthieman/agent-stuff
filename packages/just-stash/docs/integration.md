@@ -36,6 +36,8 @@ This is the most important distinction. Get it wrong and you'll either duplicate
 **Backend storage (S3, Postgres, Git remote, Cloudflare Artifacts):**
 
 - The actual durable snapshots. Git backends use git commit OIDs. Blob backends store content-addressed archives and separate commit metadata, so identical content dedups automatically while each commit still has its own timeline id.
+- For S3-only, use a distinct `S3MetadataStore.prefix` per sandbox, e.g. `metadata/${sandboxId}/`. The `S3BlobStore` prefix may be shared when you want content dedup across sandboxes.
+- For S3 + Postgres, use one shared Postgres table set and one `PostgresMetadataStore` instance per sandbox with `namespace: sandboxId`. The `BlobBackend` stays single-timeline; Postgres does the physical namespacing internally.
 
 What you should **not** store in your app database:
 
@@ -321,7 +323,9 @@ The agent should produce a single-file backend that imports `walkSnapshot`, `Cas
 
 **Forgetting token rotation for git remotes.** If your backend uses a remote git server with short-lived tokens (Cloudflare Artifacts default: 24h), you need to either mint a fresh token per session (via `CloudflareArtifacts.createBackend`, which does this automatically), or have a refresh path. A stale token will cause push failures mid-session.
 
-**Backend lifecycle confusion.** Backends are typically one per sandbox. Don't share a backend between sandboxes. The `backendFactory` in `WorkspaceManagerOptions` constructs one per `acquire`.
+**Backend lifecycle confusion.** Backends are typically one per sandbox. Don't share a backend between sandboxes. The `backendFactory` in `WorkspaceManagerOptions` constructs one per `acquire`. For adapters, share infrastructure clients rather than stateful store instances: share `pg.Pool` and construct `PostgresMetadataStore({ pool, namespace: sandboxId })`; share `S3Client` and construct per-sandbox metadata stores with distinct prefixes.
+
+**Blob GC against shared blob storage.** `findOrphanBlobs({ metadataStores, blobs })` assumes the supplied metadata stores cover the same reachability domain as the blob store's `list()`. If `blobs` is shared across many sandboxes, pass every sandbox's scoped metadata store. If you can't enumerate those stores, run blob GC only on per-sandbox blob prefixes.
 
 **Assuming commits are atomic across sandboxes.** They aren't — each backend has its own CAS chain. If you need atomic multi-sandbox updates, you need a coordinator above just-stash (your app, with a 2PC pattern or saga). just-stash handles single-sandbox consistency only.
 

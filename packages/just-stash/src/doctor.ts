@@ -105,15 +105,28 @@ export async function verifyIntegrity(
 export interface OrphanBlobReport {
   /** All blob keys in the BlobStore. */
   totalBlobs: number;
-  /** Blob keys reachable from HEAD's commit chain. */
+  /** Unique blob keys reachable from the supplied HEAD commit chains. */
   reachableBlobs: number;
   /** Blob keys not reachable — candidates for deletion. */
   orphanKeys: string[];
 }
 
+export interface FindOrphanBlobsOptions {
+  /**
+   * Every metadata store whose commits may reference blobs in `blobs`.
+   * For a shared blob prefix, pass every sandbox's scoped metadata store.
+   */
+  metadataStores: Iterable<MetadataStore>;
+  blobs: BlobStore;
+}
+
 /**
  * Identify orphan blobs in a BlobBackend's storage: data that exists
- * in the BlobStore but isn't reachable from HEAD's commit chain.
+ * in the BlobStore but isn't reachable from any supplied HEAD chain.
+ *
+ * Safety: `metadataStores` must cover the same reachability domain as
+ * `blobs.list()`. If one blob store prefix is shared by many sandboxes,
+ * include every sandbox's scoped metadata store before pruning.
  *
  * Orphans happen when a commit fails partway through (blob written,
  * commit metadata not), or after a rollback drops a commit from the
@@ -121,32 +134,31 @@ export interface OrphanBlobReport {
  *
  * This is a READ operation. Use `pruneOrphanBlobs` to actually delete.
  */
-export async function findOrphanBlobs(
-  metadata: MetadataStore,
-  blobs: BlobStore,
-): Promise<OrphanBlobReport> {
+export async function findOrphanBlobs(opts: FindOrphanBlobsOptions): Promise<OrphanBlobReport> {
   // Walk the reachable set via parentId — bounded memory.
   const reachableBlobKeys = new Set<string>();
   let hasUnknownReachableBlob = false;
-  const seenCommits = new Set<SnapshotId>();
-  let cursor: SnapshotId | null = await metadata.readHead();
-  while (cursor !== null) {
-    if (seenCommits.has(cursor)) break;
-    seenCommits.add(cursor);
-    const c = await metadata.getCommit(cursor);
-    if (!c) break;
-    if (c.contentId) {
-      reachableBlobKeys.add(c.contentId);
-    } else {
-      hasUnknownReachableBlob = true;
+  for (const metadata of opts.metadataStores) {
+    const seenCommits = new Set<SnapshotId>();
+    let cursor: SnapshotId | null = await metadata.readHead();
+    while (cursor !== null) {
+      if (seenCommits.has(cursor)) break;
+      seenCommits.add(cursor);
+      const c = await metadata.getCommit(cursor);
+      if (!c) break;
+      if (c.contentId) {
+        reachableBlobKeys.add(c.contentId);
+      } else {
+        hasUnknownReachableBlob = true;
+      }
+      cursor = c.parentId;
     }
-    cursor = c.parentId;
   }
 
   // Walk the blob store and identify ones not in the reachable set.
   const orphanKeys: string[] = [];
   let totalBlobs = 0;
-  for await (const key of blobs.list()) {
+  for await (const key of opts.blobs.list()) {
     totalBlobs++;
     if (!hasUnknownReachableBlob && !reachableBlobKeys.has(key)) orphanKeys.push(key);
   }
@@ -158,7 +170,7 @@ export async function findOrphanBlobs(
  * Delete orphan blobs from a BlobStore. Defaults to dry-run; pass
  * `{ apply: true }` to actually delete.
  *
- *   const report = await findOrphanBlobs(meta, blobs);
+ *   const report = await findOrphanBlobs({ metadataStores: [meta], blobs });
  *   if (report.orphanKeys.length > 0) {
  *     await pruneOrphanBlobs(blobs, report.orphanKeys, { apply: true });
  *   }

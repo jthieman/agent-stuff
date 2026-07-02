@@ -8,7 +8,6 @@
  * What these tests prove that the unit tests can't:
  *   - The exact SQL we emit is accepted by real Postgres
  *   - SELECT ... FOR UPDATE actually serializes concurrent writers
- *   - JSONB / TIMESTAMPTZ / SERIAL columns behave as expected
  *   - Connection pooling and BEGIN/COMMIT lifecycle work end-to-end
  *   - Errors from real Postgres (unique constraint violations,
  *     connection drops) surface as we expect
@@ -207,6 +206,89 @@ describe("Postgres integration", () => {
     expect(log[104].snapshotId).toBe("pg-log-0");
   });
 
+  it("isolates heads, commits, notes, listing, and deletes by namespace", async () => {
+    const storeA = new PostgresMetadataStore({
+      pool,
+      tablePrefix: "shared_ns_",
+      namespace: "sandbox-a",
+    });
+    const storeB = new PostgresMetadataStore({
+      pool,
+      tablePrefix: "shared_ns_",
+      namespace: "sandbox-b",
+    });
+
+    await storeA.initialize();
+    await storeB.initialize();
+
+    await Promise.all([
+      storeA.appendCommit({
+        commit: {
+          snapshotId: "shared-1" as any,
+          parentId: null,
+          trigger: "t",
+          message: "namespace a",
+          author: { name: "a", email: "a@a" },
+          timestamp: 1,
+        },
+        priorHead: null,
+      }),
+      storeB.appendCommit({
+        commit: {
+          snapshotId: "shared-1" as any,
+          parentId: null,
+          trigger: "t",
+          message: "namespace b",
+          author: { name: "b", email: "b@b" },
+          timestamp: 2,
+        },
+        priorHead: null,
+      }),
+    ]);
+
+    expect(await storeA.readHead()).toBe("shared-1");
+    expect(await storeB.readHead()).toBe("shared-1");
+    expect((await storeA.getCommit("shared-1" as any))?.message).toBe("namespace a");
+    expect((await storeB.getCommit("shared-1" as any))?.message).toBe("namespace b");
+
+    await storeA.putNote("shared-1" as any, "note a");
+    await storeB.putNote("shared-1" as any, "note b");
+    expect(await storeA.getNote("shared-1" as any)).toBe("note a");
+    expect(await storeB.getNote("shared-1" as any)).toBe("note b");
+
+    await storeA.appendCommit({
+      commit: {
+        snapshotId: "shared-2" as any,
+        parentId: "shared-1" as any,
+        trigger: "t",
+        message: "namespace a second",
+        author: { name: "a", email: "a@a" },
+        timestamp: 3,
+      },
+      priorHead: "shared-1" as any,
+    });
+
+    expect((await storeA.log()).map((c) => c.snapshotId)).toEqual(["shared-2", "shared-1"]);
+    expect((await storeB.log()).map((c) => c.snapshotId)).toEqual(["shared-1"]);
+
+    const idsA: string[] = [];
+    for await (const id of storeA.listCommitIds()) idsA.push(id);
+    const idsB: string[] = [];
+    for await (const id of storeB.listCommitIds()) idsB.push(id);
+    expect(idsA.sort()).toEqual(["shared-1", "shared-2"]);
+    expect(idsB.sort()).toEqual(["shared-1"]);
+
+    await storeA.setHead("shared-1" as any, "shared-2" as any);
+    expect(await storeA.readHead()).toBe("shared-1");
+    expect(await storeB.readHead()).toBe("shared-1");
+
+    await storeB.deleteCommit("shared-1" as any);
+    expect(await storeB.getCommit("shared-1" as any)).toBeNull();
+    expect(await storeB.getNote("shared-1" as any)).toBeNull();
+    expect((await storeA.getCommit("shared-1" as any))?.message).toBe("namespace a");
+    expect(await storeA.getNote("shared-1" as any)).toBe("note a");
+  });
+
   it("deleteCommit removes commit and any associated note", async () => {
     await store.appendCommit({
       commit: {
@@ -229,7 +311,7 @@ describe("Postgres integration", () => {
   it("end-to-end: BlobBackend with Postgres metadata, in-memory blobs", async () => {
     // Fresh schema for this test
     await pool.query(
-      'TRUNCATE "just_stash_commits", "just_stash_notes", "just_stash_head" RESTART IDENTITY',
+      'TRUNCATE "just_stash_commits", "just_stash_notes", "just_stash_heads" RESTART IDENTITY',
     );
     await store.initialize();
 

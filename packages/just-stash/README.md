@@ -216,7 +216,7 @@ const backend = new BlobBackend({ blobs, metadata });
 // S3 + Postgres (if you already run Postgres and want SQL-queryable history)
 const backend = new BlobBackend({
   blobs: new S3BlobStore({ bucket: "my-bucket" }),
-  metadata: new PostgresMetadataStore({ pool }),
+  metadata: new PostgresMetadataStore({ pool, namespace: sandboxId }),
 });
 ```
 
@@ -230,6 +230,33 @@ Snapshots are tar.zst archives keyed by SHA-256, with a separate commit id for e
 | `S3BlobStore`       | `PostgresMetadataStore`       | production with existing Postgres |
 
 The S3-only path uses S3 conditional writes (`If-Match` etags, `If-None-Match: "*"`) for atomic CAS — works on AWS S3 (post-2024), Cloudflare R2, Tigris, MinIO, anything S3-compatible with conditional write support.
+
+For multi-sandbox S3-only deployments, scope metadata by key prefix while leaving blob content shared if you want cross-sandbox dedup:
+
+```typescript
+backendFactory: (sandboxId) =>
+  new BlobBackend({
+    blobs: new S3BlobStore({ bucket: "my-bucket", prefix: "blobs/" }),
+    metadata: new S3MetadataStore({
+      bucket: "my-bucket",
+      prefix: `metadata/${sandboxId}/`,
+    }),
+  });
+```
+
+`PostgresMetadataStore` is namespace-scoped. Use one shared `Pool` and one shared table set, but construct one metadata store per sandbox:
+
+```typescript
+backendFactory: (sandboxId) =>
+  new BlobBackend({
+    blobs: new S3BlobStore({ bucket: "my-bucket" }),
+    metadata: new PostgresMetadataStore({ pool, namespace: sandboxId }),
+  });
+```
+
+The default namespace is `"default"` for demos and single-sandbox use. With the default table prefix, the shared tables are `just_stash_heads`, `just_stash_commits`, and `just_stash_notes`; commit and note rows are keyed by `(namespace, snapshot_id)`.
+
+Lifecycle rule of thumb: share infrastructure clients (`pg.Pool`, `S3Client`) freely, but treat `SnapshotBackend` and `MetadataStore` instances as one-timeline objects. If multiple backends share one blob store namespace, pass every metadata store sharing that namespace to blob GC.
 
 ### `MemoryBackend`
 
@@ -365,8 +392,9 @@ if (report.missingBlobs.length > 0) {
   console.warn("Backend damaged:", report.missingBlobs);
 }
 
-// Orphan blobs (for BlobBackend): data in storage not reachable from HEAD
-const orphans = await findOrphanBlobs(metadata, blobs);
+// Orphan blobs (for BlobBackend): data in storage not reachable from HEAD.
+// Include every metadata store sharing the blob namespace.
+const orphans = await findOrphanBlobs({ metadataStores: [metadata], blobs });
 await pruneOrphanBlobs(blobs, orphans.orphanKeys, { apply: true });
 
 // Orphan commits (any MetadataStore): commit rows not reachable from HEAD.

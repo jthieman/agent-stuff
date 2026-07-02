@@ -56,8 +56,6 @@ export class SqliteStore implements BlobStore, MetadataStore {
         snapshot_id TEXT PRIMARY KEY,
         note        TEXT NOT NULL
       );
-
-      CREATE INDEX IF NOT EXISTS idx_commits_parent ON commits(parent_id);
     `);
 
     const columns = new Set(

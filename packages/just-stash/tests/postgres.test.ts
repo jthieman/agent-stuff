@@ -13,4 +13,22 @@ describe("PostgresMetadataStore", () => {
       () => new PostgresMetadataStore({ pool: {} as any, tablePrefix: "safe_123_" }),
     ).not.toThrow();
   });
+
+  it("rejects table prefixes that would exceed Postgres identifier length", () => {
+    expect(
+      () => new PostgresMetadataStore({ pool: {} as any, tablePrefix: "a".repeat(57) }),
+    ).toThrow("Generated identifier names must be 63 characters or fewer");
+  });
+
+  it("rejects empty namespaces", () => {
+    expect(() => new PostgresMetadataStore({ pool: {} as any, namespace: "" })).toThrow(
+      "Invalid Postgres namespace",
+    );
+  });
+
+  it("allows namespaces that are not SQL identifiers", () => {
+    expect(
+      () => new PostgresMetadataStore({ pool: {} as any, namespace: "tenant/repo:main" }),
+    ).not.toThrow();
+  });
 });

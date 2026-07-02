@@ -14,7 +14,9 @@ import type { SnapshotId, CommitInfo, CommitMetadata, DiffEntry } from "./types.
  *
  *   1. commit() is atomic with CAS on prior HEAD. If priorHead doesn't
  *      match the backend's current HEAD, commit MUST throw CasConflictError
- *      and MUST NOT advance HEAD or leave the backend in a partial state.
+ *      and MUST NOT advance HEAD or expose a partial commit in the reachable
+ *      history. Content-addressed backends may leave unreachable garbage
+ *      behind after failed or losing commits; doctor/GC handles that.
  *
  *   2. commit() must durably persist the snapshot BEFORE returning. A
  *      successful return means the commit survives a crash of this

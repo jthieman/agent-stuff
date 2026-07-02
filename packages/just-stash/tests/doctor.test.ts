@@ -72,7 +72,7 @@ describe("doctor: orphan blob GC", () => {
     await fs.writeFile("/x.txt", "x");
     await fs.commit({ trigger: "turn_end" });
 
-    const report = await findOrphanBlobs(metadata, blobs);
+    const report = await findOrphanBlobs({ metadataStores: [metadata], blobs });
     expect(report.totalBlobs).toBe(1);
     expect(report.reachableBlobs).toBe(1);
     expect(report.orphanKeys).toEqual([]);
@@ -93,7 +93,7 @@ describe("doctor: orphan blob GC", () => {
     // Rollback to c1 — c2's blob is now orphaned
     await fs.rollback(c1.snapshotId);
 
-    const report = await findOrphanBlobs(metadata, blobs);
+    const report = await findOrphanBlobs({ metadataStores: [metadata], blobs });
     expect(report.orphanKeys).toContain(c2.contentId ?? c2.snapshotId);
     expect(report.reachableBlobs).toBe(1); // just c1
   });
@@ -110,7 +110,7 @@ describe("doctor: orphan blob GC", () => {
     const c2 = await fs.commit({ trigger: "t2" });
     await fs.rollback(c1.snapshotId);
 
-    const report = await findOrphanBlobs(metadata, blobs);
+    const report = await findOrphanBlobs({ metadataStores: [metadata], blobs });
     const dryRun = await pruneOrphanBlobs(blobs, report.orphanKeys, { apply: false });
     expect(dryRun.deleted).toBe(0);
     expect(dryRun.planned).toBe(report.orphanKeys.length);
@@ -130,15 +130,44 @@ describe("doctor: orphan blob GC", () => {
     const c2 = await fs.commit({ trigger: "t2" });
     await fs.rollback(c1.snapshotId);
 
-    const report = await findOrphanBlobs(metadata, blobs);
+    const report = await findOrphanBlobs({ metadataStores: [metadata], blobs });
     await pruneOrphanBlobs(blobs, report.orphanKeys, { apply: true });
 
     expect(await blobs.exists(c2.contentId ?? c2.snapshotId)).toBe(false);
     expect(await blobs.exists(c1.contentId ?? c1.snapshotId)).toBe(true);
 
     // Re-running findOrphanBlobs shows zero orphans
-    const after = await findOrphanBlobs(metadata, blobs);
+    const after = await findOrphanBlobs({ metadataStores: [metadata], blobs });
     expect(after.orphanKeys).toEqual([]);
+  });
+
+  it("keeps blobs reachable from any metadata store sharing the blob namespace", async () => {
+    const blobs = new InMemoryBlobStore();
+    const metadataA = new InMemoryMetadataStore();
+    const metadataB = new InMemoryMetadataStore();
+    const fsA = new PersistentFs(new InMemoryFs(), {
+      backend: new BlobBackend({ blobs, metadata: metadataA }),
+    });
+    const fsB = new PersistentFs(new InMemoryFs(), {
+      backend: new BlobBackend({ blobs, metadata: metadataB }),
+    });
+
+    await fsA.boot();
+    await fsA.writeFile("/a.txt", "a1");
+    const a1 = await fsA.commit({ trigger: "a1" });
+    await fsA.writeFile("/a.txt", "a2");
+    const a2 = await fsA.commit({ trigger: "a2" });
+    await fsA.rollback(a1.snapshotId);
+
+    await fsB.boot();
+    await fsB.writeFile("/b.txt", "b1");
+    const b1 = await fsB.commit({ trigger: "b1" });
+
+    const report = await findOrphanBlobs({ metadataStores: [metadataA, metadataB], blobs });
+    expect(report.orphanKeys).toContain(a2.contentId ?? a2.snapshotId);
+    expect(report.orphanKeys).not.toContain(a1.contentId ?? a1.snapshotId);
+    expect(report.orphanKeys).not.toContain(b1.contentId ?? b1.snapshotId);
+    expect(report.reachableBlobs).toBe(2);
   });
 
   it("does not mark blobs orphaned when a reachable legacy commit has null contentId", async () => {
@@ -158,7 +187,7 @@ describe("doctor: orphan blob GC", () => {
       priorHead: null,
     });
 
-    const report = await findOrphanBlobs(metadata, blobs);
+    const report = await findOrphanBlobs({ metadataStores: [metadata], blobs });
     expect(report.totalBlobs).toBe(2);
     expect(report.reachableBlobs).toBe(0);
     expect(report.orphanKeys).toEqual([]);

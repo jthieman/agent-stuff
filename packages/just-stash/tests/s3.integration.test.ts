@@ -289,7 +289,7 @@ describe("S3 / MinIO integration", () => {
       expect(await blobs.exists(c2BlobKey)).toBe(true);
 
       // doctor.findOrphanBlobs finds c2's blob now that it's unreachable
-      const orphans = await findOrphanBlobs(metadata, blobs);
+      const orphans = await findOrphanBlobs({ metadataStores: [metadata], blobs });
       expect(orphans.orphanKeys).toContain(c2BlobKey);
 
       await pruneOrphanBlobs(blobs, orphans.orphanKeys, { apply: true });
