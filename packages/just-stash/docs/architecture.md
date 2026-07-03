@@ -48,13 +48,15 @@ That's the whole job.
                             │
         ┌──────────────────┴──────────────────┐
         ▼                                       ▼
-  git remote                              S3-only or S3 + Postgres
-  (Cloudflare Artifacts,                   (S3BlobStore +
-   GitHub, self-hosted)                     S3MetadataStore, or
-                                            S3 + PostgresMetadataStore)
+  git remote                              blob stores + metadata
+  (Cloudflare Artifacts,                   (S3BlobStore, AzureBlobStore +
+   GitHub, self-hosted)                     S3MetadataStore, Postgres,
+                                            SQLite, or another store)
 ```
 
 The S3-only path uses S3 conditional writes (`If-Match` etags) for atomic CAS on the HEAD pointer. This means production deployments can be backed by literally one S3-compatible bucket — no Postgres, no extra services. Works on AWS S3 (post-2024), Cloudflare R2, Tigris, MinIO.
+
+Azure Blob is a blob-store implementation only. It plugs into `BlobBackend` for archive bytes and should be paired with a `MetadataStore` such as Postgres or SQLite.
 
 The trees and caches under `/var/lib/just-stash/` are caches — losing them is recoverable from the backend, just slower. The backends are durable.
 
@@ -75,7 +77,7 @@ SnapshotBackend — the central abstraction
         │
         ▼
 Stores — pluggable halves of BlobBackend
-   InMemory  |  Sqlite (both)  |  S3-only  |  S3 + Postgres
+   InMemory  |  Sqlite (both)  |  S3-only  |  S3/Postgres  |  Azure/Postgres
 ```
 
 The disk-backed working tree (DiskWorkingTree) and the pool manager (WorkspaceManager) sit above the wrappers — they're how the harness creates and manages `PersistentFs` instances at scale.
@@ -167,14 +169,28 @@ Crash safety (with cross-process locking on): if the owner dies, the heartbeat s
 
 `WorkspaceManager` extends `EventEmitter` with typed events:
 
-| Event     | Args                        | When                                                                   |
-| --------- | --------------------------- | ---------------------------------------------------------------------- |
-| `acquire` | `(sandboxId, { warmBoot })` | Handle handed out. `warmBoot` is true if restore was skipped.          |
-| `release` | `(sandboxId)`               | Handle released or disposed.                                           |
-| `evict`   | `(sandboxId, { reason })`   | Tree directory deleted. `reason` is `'ttl' \| 'budget' \| 'explicit'`. |
-| `sweep`   | `({ scanned, evicted })`    | After a sweep completes.                                               |
+| Event     | Args                                                                                 | When                                                                            |
+| --------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `acquire` | `(sandboxId, { warmBoot, restoreSkipped, durationMs, backendHead, lockDurationMs })` | Handle handed out. `warmBoot`/`restoreSkipped` are true if restore was skipped. |
+| `restore` | `(sandboxId, { durationMs, head })`                                                  | Tree restored from backend during acquire. Not emitted on warm boot.            |
+| `release` | `(sandboxId)`                                                                        | Handle released or disposed.                                                    |
+| `evict`   | `(sandboxId, { reason })`                                                            | Tree directory deleted. `reason` is `'ttl' \| 'budget' \| 'explicit'`.          |
+| `sweep`   | `({ scanned, evicted })`                                                             | After a sweep completes.                                                        |
 
 These are fire-and-forget; just-stash doesn't await listeners. Use them to plug into your metrics or logging stack without adding dependencies on a specific framework.
+
+Example:
+
+```typescript
+manager.on("acquire", (_sandboxId, info) => {
+  metrics.timing("just_stash.acquire_ms", info.durationMs, {
+    warm: info.warmBoot ? "true" : "false",
+  });
+});
+manager.on("restore", (_sandboxId, info) => {
+  metrics.timing("just_stash.restore_ms", info.durationMs);
+});
+```
 
 ## SnapshotBackend contract
 
@@ -281,7 +297,7 @@ If a deployment hits pgbouncer issues, switching is mechanical. The interface do
 These were on the "what we punted on" list in earlier versions, now resolved:
 
 - ~~**Cloudflare Artifacts native fork.**~~ `just-stash/cloudflare` exposes the full Artifacts REST API including server-side fork. `GitBackend` handles the data plane unchanged.
-- ~~**Integration tests against real backends.**~~ Added `*.integration.test.ts` files for Postgres (real Postgres), S3 (MinIO), and git remote (Gitea), all via `testcontainers`. They run as part of the normal test suite and require Docker.
+- ~~**Integration tests against real backends.**~~ Added `*.integration.test.ts` files for Postgres (real Postgres), S3 (MinIO), Azure Blob (Azurite), and git remote (Gitea), all via `testcontainers`. They run as part of the normal test suite and require Docker.
 - ~~**Cross-process locks.**~~ Implemented in pure Node via the `open('wx')` + PID + mtime heartbeat pattern. See "Single-writer enforcement" above.
 - ~~**Observability hooks.**~~ `WorkspaceManager` is now an `EventEmitter` with typed events.
 - ~~**Ambiguous-commit recovery.**~~ `PersistentFs.reconcile(error)` returns a structured outcome so callers can distinguish CAS conflicts from "we don't know if it landed."

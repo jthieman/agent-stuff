@@ -3,6 +3,22 @@ import { InMemoryFs, MountableFs } from "just-bash";
 import { PersistentFs } from "../src/wrappers/persistent-fs.ts";
 import { MemoryBackend } from "../src/stores/memory.ts";
 import { CasConflictError } from "../src/types.ts";
+import type { SnapshotBackend } from "../src/backend.ts";
+import type { CommitInfo, CommitMetadata, SnapshotId } from "../src/types.ts";
+
+class CountingCommitBackend extends MemoryBackend {
+  commitCalls = 0;
+
+  override async commit(opts: {
+    fs: Parameters<SnapshotBackend["commit"]>[0]["fs"];
+    excludePaths: string[];
+    priorHead: SnapshotId | null;
+    metadata: CommitMetadata;
+  }): Promise<CommitInfo> {
+    this.commitCalls++;
+    return super.commit(opts);
+  }
+}
 
 describe("PersistentFs + MemoryBackend", () => {
   let backend: MemoryBackend;
@@ -66,6 +82,40 @@ describe("PersistentFs + MemoryBackend", () => {
       await fs.boot();
       expect(await fs.exists("/keep.txt")).toBe(true);
       expect(await fs.exists("/stale.txt")).toBe(false);
+    });
+  });
+
+  describe("checkpoint", () => {
+    it("does not call backend commit when clean", async () => {
+      const countingBackend = new CountingCommitBackend();
+      const fs = new PersistentFs(new InMemoryFs(), { backend: countingBackend });
+      await fs.boot();
+
+      const result = await fs.checkpoint({ trigger: "turn_end" });
+
+      expect(result).toEqual({ changed: false, snapshotId: null });
+      expect(countingBackend.commitCalls).toBe(0);
+      expect(await countingBackend.readHead()).toBeNull();
+    });
+
+    it("commits dirty state once, clears dirty, and returns the snapshot id", async () => {
+      const countingBackend = new CountingCommitBackend();
+      const fs = new PersistentFs(new InMemoryFs(), { backend: countingBackend });
+      await fs.boot();
+      await fs.writeFile("/changed.txt", "yes");
+
+      const result = await fs.checkpoint({ trigger: "turn_end", message: "changed" });
+
+      expect(result.changed).toBe(true);
+      if (!result.changed) throw new Error("expected changed checkpoint");
+      expect(result.snapshotId).toBe(result.info.snapshotId);
+      expect(await countingBackend.readHead()).toBe(result.snapshotId);
+      expect(countingBackend.commitCalls).toBe(1);
+      expect(fs.isDirty()).toBe(false);
+
+      const cleanResult = await fs.checkpoint({ trigger: "turn_end" });
+      expect(cleanResult).toEqual({ changed: false, snapshotId: null });
+      expect(countingBackend.commitCalls).toBe(1);
     });
   });
 

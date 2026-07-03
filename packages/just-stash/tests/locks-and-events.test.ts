@@ -301,17 +301,49 @@ describe("WorkspaceManager events", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("emits acquire with warmBoot info", async () => {
+  it("emits acquire with warmBoot timing and backend info", async () => {
     const m = new WorkspaceManager({
       root,
       defaults: { backendFactory: () => new MemoryBackend() },
     });
-    const events: Array<{ sandboxId: string; warmBoot: boolean }> = [];
+    const events: Array<{
+      sandboxId: string;
+      warmBoot: boolean;
+      restoreSkipped: boolean;
+      durationMs: number;
+      backendHead: string | null;
+      lockDurationMs: number;
+    }> = [];
     m.on("acquire", (sandboxId, info) => events.push({ sandboxId, ...info }));
 
     const h1 = await m.acquire("alice");
-    expect(events).toEqual([{ sandboxId: "alice", warmBoot: false }]);
+    expect(events.length).toBe(1);
+    expect(events[0]).toMatchObject({
+      sandboxId: "alice",
+      warmBoot: false,
+      restoreSkipped: false,
+      backendHead: null,
+    });
+    expect(events[0].durationMs).toBeGreaterThanOrEqual(0);
+    expect(events[0].lockDurationMs).toBeGreaterThanOrEqual(0);
     await h1.release();
+    await m.close();
+  });
+
+  it("emits restore timing when a tree is restored from the backend", async () => {
+    const m = new WorkspaceManager({
+      root,
+      defaults: { backendFactory: () => new MemoryBackend() },
+    });
+    const restores: Array<{ sandboxId: string; durationMs: number; head: string | null }> = [];
+    m.on("restore", (sandboxId, info) => restores.push({ sandboxId, ...info }));
+
+    const h = await m.acquire("alice");
+
+    expect(restores.length).toBe(1);
+    expect(restores[0]).toMatchObject({ sandboxId: "alice", head: null });
+    expect(restores[0].durationMs).toBeGreaterThanOrEqual(0);
+    await h.release();
     await m.close();
   });
 

@@ -11,7 +11,8 @@ export type EvictReason = "ttl" | "budget" | "explicit";
 /**
  * Events emitted by WorkspaceManager.
  *
- *   acquire     (sandboxId, { warmBoot })   sandbox acquired; warmBoot=true if restore was skipped
+ *   acquire     (sandboxId, info)           sandbox acquired; warmBoot=true if restore was skipped
+ *   restore     (sandboxId, info)           tree restored from backend
  *   release     (sandboxId)                 sandbox released or disposed
  *   evict       (sandboxId, { reason })     tree deleted; reason is why
  *   sweep       ({ scanned, evicted })      sweep completed
@@ -19,7 +20,17 @@ export type EvictReason = "ttl" | "budget" | "explicit";
  * Subscribe with manager.on('acquire', (id, info) => ...) etc.
  */
 export interface WorkspaceManagerEvents {
-  acquire: (sandboxId: string, info: { warmBoot: boolean }) => void;
+  acquire: (
+    sandboxId: string,
+    info: {
+      warmBoot: boolean;
+      restoreSkipped: boolean;
+      durationMs: number;
+      backendHead: string | null;
+      lockDurationMs: number;
+    },
+  ) => void;
+  restore: (sandboxId: string, info: { durationMs: number; head: string | null }) => void;
   release: (sandboxId: string) => void;
   evict: (sandboxId: string, info: { reason: EvictReason }) => void;
   sweep: (info: { scanned: number; evicted: string[] }) => void;
@@ -228,6 +239,7 @@ export class WorkspaceManager extends EventEmitter {
     sandboxId: string,
     configOverride?: Partial<SandboxConfig>,
   ): Promise<SandboxHandle> {
+    const acquireStartedAt = Date.now();
     validateSandboxId(sandboxId);
 
     // Synchronously claim the slot BEFORE any await. Closes the race
@@ -252,7 +264,9 @@ export class WorkspaceManager extends EventEmitter {
       const metaPath = join(this.root, "meta", `${sandboxId}.json`);
 
       // Acquire cross-process lock (no-op when disabled).
+      const lockStartedAt = Date.now();
       const lock = await acquireFileLock(lockPath, sandboxId, this.crossProcessLocking);
+      const lockDurationMs = Date.now() - lockStartedAt;
 
       let backend: SnapshotBackend | null = null;
       try {
@@ -281,9 +295,15 @@ export class WorkspaceManager extends EventEmitter {
           warmBoot = true;
           fs.markCleanAtHead(backendHead);
         } else {
+          const restoreStartedAt = Date.now();
           await fs.boot();
-          meta.lastBootedHead = fs.getKnownHead() ?? (await backend.readHead());
+          const restoredHead = fs.getKnownHead() ?? (await backend.readHead());
+          meta.lastBootedHead = restoredHead;
           meta.treeClean = true;
+          this.emit("restore", sandboxId, {
+            durationMs: Date.now() - restoreStartedAt,
+            head: restoredHead,
+          });
         }
         // From this point until release, a crash could leave uncommitted
         // mutations in the tree. Mark dirty pessimistically and only bless
@@ -333,7 +353,13 @@ export class WorkspaceManager extends EventEmitter {
         };
 
         this.active.set(sandboxId, { handle, backend, lock });
-        this.emit("acquire", sandboxId, { warmBoot });
+        this.emit("acquire", sandboxId, {
+          warmBoot,
+          restoreSkipped: warmBoot,
+          durationMs: Date.now() - acquireStartedAt,
+          backendHead,
+          lockDurationMs,
+        });
         return handle;
       } catch (e) {
         try {

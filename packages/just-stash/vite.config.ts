@@ -6,6 +6,7 @@ export default defineConfig({
       index: "src/index.ts",
       git: "src/backends/git.ts",
       blob: "src/backends/blob.ts",
+      azure: "src/stores/azure.ts",
       sqlite: "src/stores/sqlite.ts",
       postgres: "src/stores/postgres.ts",
       s3: "src/stores/s3.ts",

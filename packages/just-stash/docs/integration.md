@@ -37,6 +37,7 @@ This is the most important distinction. Get it wrong and you'll either duplicate
 
 - The actual durable snapshots. Git backends use git commit OIDs. Blob backends store content-addressed archives and separate commit metadata, so identical content dedups automatically while each commit still has its own timeline id.
 - For S3-only, use a distinct `S3MetadataStore.prefix` per sandbox, e.g. `metadata/${sandboxId}/`. The `S3BlobStore` prefix may be shared when you want content dedup across sandboxes.
+- For Azure Blob, use `AzureBlobStore` from `just-stash/azure` with a prefix per reachability domain. Pair it with Postgres, SQLite, or another `MetadataStore`; Azure-backed metadata is intentionally separate.
 - For S3 + Postgres, use one shared Postgres table set and one `PostgresMetadataStore` instance per sandbox with `namespace: sandboxId`. The `BlobBackend` stays single-timeline; Postgres does the physical namespacing internally.
 
 What you should **not** store in your app database:
@@ -56,8 +57,8 @@ async function runAgentTurn(conversationId: string, userMessage: string) {
     // The agent reads/writes through handle.fs
     const bash = new Bash({ fs: handle.fs });
     await runAgent(bash, userMessage);
-    // Commit at the natural boundary
-    await handle.fs.commit({ trigger: "turn_end" });
+    // Checkpoint at the natural boundary
+    await handle.fs.checkpoint({ trigger: "turn_end" });
   } finally {
     await handle.release();
   }
@@ -81,7 +82,9 @@ Match it to a meaningful boundary in your agent loop. Common choices:
 - **On explicit user signal** (`/snapshot` slash command via `just-stash/pi`) — for "save point" workflows.
 - **At session end only** — cheapest but loses intra-session rollback. Only viable if your agent doesn't need to undo mid-session.
 
-If a turn doesn't change any files (e.g., the agent just chatted), commit anyway — the blob content dedups, and the distinct commit id keeps the chain consistent with your conversation history.
+Use `commit()` when you intentionally want every boundary to create a history entry. Blob-backed commits dedup identical content, but a clean `commit()` still walks the tree and advances HEAD with a distinct commit id.
+
+Use `checkpoint()` when the boundary is high-frequency and often filesystem-clean. It checks `isDirty()` first: clean trees return `{ changed: false, snapshotId: null }` without walking the tree or advancing HEAD; dirty trees call through to `commit()` and return `{ changed: true, snapshotId, info }`.
 
 ### Where to call `rollback`
 
@@ -297,7 +300,7 @@ Read them in that order. The Blob backend's logic (walk → archive → hash con
 
 When to actually reach for a custom backend:
 
-- **New storage system.** GCS with conditional puts, Azure Blob with leases, your-internal-storage-with-CAS — write a `BlobStore` + `MetadataStore` pair, use the existing `BlobBackend`. Almost never write a full backend from scratch.
+- **New storage system.** GCS with conditional puts, your-internal-storage-with-CAS — write a `BlobStore` + `MetadataStore` pair, use the existing `BlobBackend`. Almost never write a full backend from scratch. Azure Blob is already covered by `AzureBlobStore` in `just-stash/azure`.
 - **Specialized snapshot semantics.** E.g., per-file blobs instead of one tar archive (better for selective restore); structured-data backends that aren't just bytes.
 - **Different durability model.** E.g., a backend that uses synchronous replication across regions before commit returns.
 
@@ -315,7 +318,7 @@ The agent should produce a single-file backend that imports `walkSnapshot`, `Cas
 
 **Storing tree content in your app DB.** Don't. It diverges from the backend, doubles your storage cost, and means two systems can disagree about "the current state." The backend is the source of truth for working-tree files.
 
-**Calling `commit` after every keystroke or tool call.** Each commit walks the full tree (O(workspace size)) and hashes it. For frequent commits with large trees, this dominates latency. Commit at meaningful boundaries (per-turn is usually right).
+**Calling `commit` after every keystroke or tool call.** Each commit walks the full tree (O(workspace size)) and hashes it. For frequent boundaries that are often clean, prefer `checkpoint()`. For dirty boundaries, commit at meaningful points (per-turn is usually right).
 
 **Wrapping a host directory you care about.** `PersistentFs.boot()` clears the inner filesystem before restore. If `DiskWorkingTree` is pointed at `/home/me`, that's wiped. Always point at a directory just-stash owns (under `WorkspaceManager.root` if using the manager).
 

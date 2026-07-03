@@ -66,6 +66,10 @@ export interface CommitOpts {
   note?: string;
 }
 
+export type CheckpointResult =
+  | { changed: false; snapshotId: null }
+  | { changed: true; snapshotId: SnapshotId; info: CommitInfo };
+
 const DEFAULT_AUTHOR = { name: "just-stash", email: "just-stash@local" };
 
 /**
@@ -166,6 +170,22 @@ export class PersistentFs<T extends IFileSystem = IFileSystem> implements IFileS
       await this.backend.addNote(info.snapshotId, opts.note);
     }
     return info;
+  }
+
+  /**
+   * Commit only when this wrapper has observed filesystem mutations.
+   *
+   * Use this at high-frequency lifecycle boundaries (turn end, request
+   * end, periodic checkpoints) where many boundaries may be filesystem-clean.
+   * If the tree is clean, this does not walk the tree, archive content, or
+   * advance backend HEAD. Use commit() directly when you intentionally want
+   * every boundary to create a commit history entry, or after populating the
+   * inner filesystem directly/out-of-band.
+   */
+  async checkpoint(opts: CommitOpts): Promise<CheckpointResult> {
+    if (!this.dirty) return { changed: false, snapshotId: null };
+    const info = await this.commit(opts);
+    return { changed: true, snapshotId: info.snapshotId, info };
   }
 
   /**

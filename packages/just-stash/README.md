@@ -30,6 +30,7 @@ Optional peer dependencies, one per backend you use:
 pnpm add isomorphic-git      # GitBackend
 pnpm add better-sqlite3      # SqliteStore
 pnpm add @aws-sdk/client-s3  # S3BlobStore
+pnpm add @azure/storage-blob # AzureBlobStore
 pnpm add pg                  # PostgresMetadataStore
 ```
 
@@ -104,8 +105,13 @@ When `crossProcessLocking: true`, just-stash uses a lockfile under `<root>/locks
 `WorkspaceManager` extends `EventEmitter` with typed events. Use them for metrics, structured logging, or any custom integration:
 
 ```typescript
-manager.on("acquire", (sandboxId, { warmBoot }) => {
+manager.on("acquire", (sandboxId, { warmBoot, durationMs, backendHead }) => {
   metrics.counter("sandbox.acquire", { warm: warmBoot ? "y" : "n" });
+  metrics.timing("sandbox.acquire.ms", durationMs);
+  logger.debug({ sandboxId, backendHead }, "sandbox acquired");
+});
+manager.on("restore", (sandboxId, { durationMs, head }) => {
+  metrics.timing("sandbox.restore.ms", durationMs, { empty: head ? "n" : "y" });
 });
 manager.on("release", (sandboxId) => {
   /* ... */
@@ -172,6 +178,7 @@ Lifecycle:
 ```typescript
 await fs.boot(); // restore from HEAD
 await fs.commit({ trigger: "turn_end", note: "metadata" });
+await fs.checkpoint({ trigger: "turn_end" });
 await fs.rollback(snapshotId);
 const history = await fs.log({ limit: 20 });
 const changes = await fs.diff(fromId, toId);
@@ -179,7 +186,9 @@ const changes = await fs.diff(fromId, toId);
 
 `log()` returns newest-first. Omit `limit` to return the full reachable chain, or pass `limit` for bounded UI timelines.
 
-`commit()` blocks until the snapshot is durably persisted to the backend. There's no separate "push" — if commit returns, the data survives a container crash.
+`commit()` blocks until the snapshot is durably persisted to the backend. There's no separate "push" — if commit returns, the data survives a container crash. It always creates a commit, even when the filesystem is clean; use that when every lifecycle boundary should appear in history.
+
+`checkpoint()` is the dirty-aware helper for high-frequency boundaries. If no filesystem write happened through the `PersistentFs` wrapper since boot/commit/rollback, it returns `{ changed: false, snapshotId: null }` without walking the tree, storing an archive, or advancing HEAD. If the tree is dirty, it calls through to `commit()` and returns `{ changed: true, snapshotId, info }`. Use `commit()` after populating `inner` directly or making out-of-band filesystem changes.
 
 ## Backends
 
@@ -205,6 +214,7 @@ For remote-backed repos, `rollback()` moves the branch backward with force-with-
 ```typescript
 import { BlobBackend } from "just-stash";
 import { S3BlobStore, S3MetadataStore } from "just-stash/s3";
+import { AzureBlobStore } from "just-stash/azure";
 import { PostgresMetadataStore } from "just-stash/postgres";
 
 // S3-only (recommended for new deployments) — no other infrastructure
@@ -218,6 +228,15 @@ const backend = new BlobBackend({
   blobs: new S3BlobStore({ bucket: "my-bucket" }),
   metadata: new PostgresMetadataStore({ pool, namespace: sandboxId }),
 });
+
+// Azure Blob + Postgres
+const backend = new BlobBackend({
+  blobs: new AzureBlobStore({
+    containerName: "snapshots",
+    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+  }),
+  metadata: new PostgresMetadataStore({ pool, namespace: sandboxId }),
+});
 ```
 
 Snapshots are tar.zst archives keyed by SHA-256, with a separate commit id for each history entry. Identical content dedups across forks and no-op commits, while every successful commit still advances the chain. Mix-and-match stores:
@@ -228,6 +247,8 @@ Snapshots are tar.zst archives keyed by SHA-256, with a separate commit id for e
 | `SqliteStore`       | `SqliteStore` (same instance) | local dev, embedded               |
 | `S3BlobStore`       | `S3MetadataStore`             | **production, S3-only**           |
 | `S3BlobStore`       | `PostgresMetadataStore`       | production with existing Postgres |
+| `AzureBlobStore`    | `PostgresMetadataStore`       | production with Azure Blob        |
+| `AzureBlobStore`    | `SqliteStore`                 | Azure blobs with local metadata   |
 
 The S3-only path uses S3 conditional writes (`If-Match` etags, `If-None-Match: "*"`) for atomic CAS — works on AWS S3 (post-2024), Cloudflare R2, Tigris, MinIO, anything S3-compatible with conditional write support.
 
@@ -241,6 +262,20 @@ backendFactory: (sandboxId) =>
       bucket: "my-bucket",
       prefix: `metadata/${sandboxId}/`,
     }),
+  });
+```
+
+For Azure Blob deployments, share an Azure SDK client or connection string and scope blob keys with a prefix:
+
+```typescript
+backendFactory: (sandboxId) =>
+  new BlobBackend({
+    blobs: new AzureBlobStore({
+      containerName: "snapshots",
+      prefix: `blobs/${sandboxId}/`,
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    }),
+    metadata: new PostgresMetadataStore({ pool, namespace: sandboxId }),
   });
 ```
 
@@ -443,6 +478,7 @@ What the integration tests cover that unit tests can't:
 
 - **Postgres**: `SELECT FOR UPDATE` actually serializes concurrent writers; the exact SQL we emit is accepted; cursor-based `listCommitIds` streams large histories; full BlobBackend+Postgres+doctor round-trip
 - **S3** (MinIO): `If-Match` / `If-None-Match` semantics work against real S3 protocol; `412 PreconditionFailed` comes back in the shape `S3MetadataStore` expects; pagination works for `ListObjectsV2`; concurrent CAS-via-network actually serializes
+- **Azure Blob** (Azurite): connection-string construction, conditional content-addressed uploads, download/delete/list, and BlobBackend archive storage against the Azure SDK
 - **Git remote** (Gitea): isomorphic-git push/fetch against real HTTP smart-protocol; token auth wiring; server-side ref check rejects diverged pushes (the CAS-at-the-push-layer property); fetch + restore from a fresh cache (the "new machine warm-boot" path); auth failure surfaces; chain integrity over real HTTP
 
 ## Known edge cases

@@ -25,6 +25,7 @@ export { PersistentFs } from "./wrappers/persistent-fs.ts";
 export type {
   PersistentFsOptions,
   CommitOpts,
+  CheckpointResult,
   ReconcileOutcome,
 } from "./wrappers/persistent-fs.ts";
 
