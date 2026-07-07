@@ -1,5 +1,5 @@
 {
-  "name": "just-bash-secure-exec",
+  "name": "@jthieman/just-bash-secure-exec",
   "version": "0.1.0",
   "description": "Secure Exec-backed Node.js sandbox integration for just-bash.",
   "keywords": [
@@ -35,7 +35,8 @@
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "vp pack",

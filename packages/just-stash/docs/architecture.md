@@ -296,7 +296,7 @@ If a deployment hits pgbouncer issues, switching is mechanical. The interface do
 
 These were on the "what we punted on" list in earlier versions, now resolved:
 
-- ~~**Cloudflare Artifacts native fork.**~~ `just-stash/cloudflare` exposes the full Artifacts REST API including server-side fork. `GitBackend` handles the data plane unchanged.
+- ~~**Cloudflare Artifacts native fork.**~~ `@jthieman/just-stash/cloudflare` exposes the full Artifacts REST API including server-side fork. `GitBackend` handles the data plane unchanged.
 - ~~**Integration tests against real backends.**~~ Added `*.integration.test.ts` files for Postgres (real Postgres), S3 (MinIO), Azure Blob (Azurite), and git remote (Gitea), all via `testcontainers`. They run as part of the normal test suite and require Docker.
 - ~~**Cross-process locks.**~~ Implemented in pure Node via the `open('wx')` + PID + mtime heartbeat pattern. See "Single-writer enforcement" above.
 - ~~**Observability hooks.**~~ `WorkspaceManager` is now an `EventEmitter` with typed events.

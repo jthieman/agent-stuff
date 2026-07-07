@@ -21,7 +21,7 @@ Early. API may change.
 Requires Node.js 22.15.0 or newer. Blob-backed stores use Node's built-in zstd APIs.
 
 ```bash
-pnpm add just-stash just-bash
+pnpm add @jthieman/just-stash just-bash
 ```
 
 Optional peer dependencies, one per backend you use:
@@ -40,8 +40,8 @@ For real workloads — multiple sandboxes per machine, real disk usage, warm boo
 
 ```typescript
 import { Bash } from "just-bash";
-import { WorkspaceManager } from "just-stash";
-import { GitBackend } from "just-stash/git";
+import { WorkspaceManager } from "@jthieman/just-stash";
+import { GitBackend } from "@jthieman/just-stash/git";
 import http from "isomorphic-git/http/node";
 
 const manager = new WorkspaceManager({
@@ -161,7 +161,7 @@ new SizeLimitedFs(inner, {
 
 Throws `ENOSPC` when a write would exceed either limit. Byte accounting is maintained incrementally for operations through the wrapper and can be recalculated after restores; treat the byte cap as a practical guardrail rather than an auditor for out-of-band filesystem mutations.
 
-Agent-visible path filtering is outside just-stash's persistence model. Use `just-bash-filtered-fs` when an agent should see only part of an `IFileSystem`.
+Agent-visible path filtering is outside just-stash's persistence model. Use `@jthieman/just-bash-filtered-fs` when an agent should see only part of an `IFileSystem`.
 
 ### `PersistentFs`
 
@@ -195,7 +195,7 @@ const changes = await fs.diff(fromId, toId);
 ### `GitBackend`
 
 ```typescript
-import { GitBackend } from "just-stash/git";
+import { GitBackend } from "@jthieman/just-stash/git";
 import http from "isomorphic-git/http/node";
 
 const backend = new GitBackend({
@@ -212,10 +212,10 @@ For remote-backed repos, `rollback()` moves the branch backward with force-with-
 ### `BlobBackend`
 
 ```typescript
-import { BlobBackend } from "just-stash";
-import { S3BlobStore, S3MetadataStore } from "just-stash/s3";
-import { AzureBlobStore } from "just-stash/azure";
-import { PostgresMetadataStore } from "just-stash/postgres";
+import { BlobBackend } from "@jthieman/just-stash";
+import { S3BlobStore, S3MetadataStore } from "@jthieman/just-stash/s3";
+import { AzureBlobStore } from "@jthieman/just-stash/azure";
+import { PostgresMetadataStore } from "@jthieman/just-stash/postgres";
 
 // S3-only (recommended for new deployments) — no other infrastructure
 const blobs = new S3BlobStore({ bucket: "my-bucket" });
@@ -348,7 +348,7 @@ This isn't a magic "did my commit succeed" oracle — the backend has no way to 
 ## Pi integration
 
 ```typescript
-import { registerSnapshotCommands } from "just-stash/pi";
+import { registerSnapshotCommands } from "@jthieman/just-stash/pi";
 registerSnapshotCommands(piRegistry, handle.fs);
 ```
 
@@ -356,10 +356,10 @@ Adds `/snapshot [note]`, `/snapshots`, `/rollback <id-prefix>`.
 
 ## Cloudflare Artifacts
 
-[Cloudflare Artifacts](https://developers.cloudflare.com/artifacts/) is a Git-compatible artifact store designed for agent workloads. The data plane is standard smart-HTTPS Git, so `GitBackend` talks to it without modification. `just-stash/cloudflare` handles the management plane: creating repos on demand, server-side fork (no data transfer), minting per-session tokens.
+[Cloudflare Artifacts](https://developers.cloudflare.com/artifacts/) is a Git-compatible artifact store designed for agent workloads. The data plane is standard smart-HTTPS Git, so `GitBackend` talks to it without modification. `@jthieman/just-stash/cloudflare` handles the management plane: creating repos on demand, server-side fork (no data transfer), minting per-session tokens.
 
 ```typescript
-import { CloudflareArtifacts } from "just-stash/cloudflare";
+import { CloudflareArtifacts } from "@jthieman/just-stash/cloudflare";
 
 const cf = new CloudflareArtifacts({
   apiToken: process.env.CF_API_TOKEN!,
@@ -408,7 +408,7 @@ The full REST surface (`createRepo`, `getRepo`, `listRepos`, `deleteRepo`, `fork
 
 ## Operations: doctor / GC
 
-For long-running deployments, just-stash/doctor offers tools to inspect and clean up state:
+For long-running deployments, `@jthieman/just-stash/doctor` offers tools to inspect and clean up state:
 
 ```typescript
 import {
@@ -419,7 +419,7 @@ import {
   pruneOrphanCommits,
   findStaleWorkspaces,
   pruneOrphanedMeta,
-} from "just-stash/doctor";
+} from "@jthieman/just-stash/doctor";
 
 // Backend integrity: walk the commit chain, check parent linkage and content blob presence
 const report = await verifyIntegrity(backend, { blobs });

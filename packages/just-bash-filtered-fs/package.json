@@ -1,5 +1,5 @@
 {
-  "name": "just-bash-filtered-fs",
+  "name": "@jthieman/just-bash-filtered-fs",
   "version": "0.1.0",
   "description": "Path-filtering IFileSystem wrapper for just-bash.",
   "keywords": [
@@ -33,7 +33,8 @@
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "vp pack",

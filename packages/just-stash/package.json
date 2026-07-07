@@ -1,5 +1,5 @@
 {
-  "name": "just-stash",
+  "name": "@jthieman/just-stash",
   "version": "0.1.0",
   "description": "Restorable, forkable persistence for just-bash filesystems.",
   "homepage": "https://github.com/jthieman/agent-stuff/tree/main/packages/just-stash#readme",
@@ -62,7 +62,8 @@
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "vp pack",

@@ -40,7 +40,7 @@ Run this package's tests through Vite+.
 From the repository root, run the package test script directly:
 
 ```bash
-vp run just-bash-secure-exec#test
+vp run @jthieman/just-bash-secure-exec#test
 ```
 
 To run all workspace package tests, use:

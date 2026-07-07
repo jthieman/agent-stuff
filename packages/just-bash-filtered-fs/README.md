@@ -7,14 +7,14 @@ Path-filtering wrapper for [`just-bash`](https://www.npmjs.com/package/just-bash
 ## Install
 
 ```bash
-pnpm add just-bash-filtered-fs just-bash
+pnpm add @jthieman/just-bash-filtered-fs just-bash
 ```
 
 ## Usage
 
 ```ts
 import { Bash, InMemoryFs } from "just-bash";
-import { FilteredFs } from "just-bash-filtered-fs";
+import { FilteredFs } from "@jthieman/just-bash-filtered-fs";
 
 const inner = new InMemoryFs({
   "/workspace/README.md": "# visible",
