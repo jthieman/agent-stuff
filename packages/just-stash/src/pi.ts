@@ -19,7 +19,7 @@ export interface CommandRegistry {
 /**
  * Register `/snapshot`, `/snapshots`, and `/rollback` commands.
  *
- *   import { registerSnapshotCommands } from 'just-stash/pi';
+ *   import { registerSnapshotCommands } from '@jthieman/just-stash/pi';
  *
  *   const fs = new PersistentFs(inner, { backend });
  *   await fs.boot();

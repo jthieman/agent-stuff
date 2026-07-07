@@ -31,7 +31,7 @@ Important coverage areas:
 Run this package's tests through Vite+:
 
 ```bash
-vp run just-bash-filtered-fs#test
+vp run @jthieman/just-bash-filtered-fs#test
 ```
 
 For workspace validation, run:

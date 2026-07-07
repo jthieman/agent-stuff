@@ -11,14 +11,14 @@ This package adapts `secure-exec` into the `just-bash` sandbox model:
 ## Install
 
 ```bash
-pnpm add just-bash-secure-exec just-bash secure-exec
+pnpm add @jthieman/just-bash-secure-exec just-bash secure-exec
 ```
 
 ## Quick Start
 
 ```ts
 import { Bash } from "just-bash";
-import { MemoryJustBashFs, createJsSandbox } from "just-bash-secure-exec";
+import { MemoryJustBashFs, createJsSandbox } from "@jthieman/just-bash-secure-exec";
 
 const fs = new MemoryJustBashFs({
   "/workspace/main.mjs": `
@@ -77,7 +77,7 @@ For agent or user sessions, create a separate `just-bash` filesystem and sandbox
 
 ```ts
 import { Bash, type NetworkConfig } from "just-bash";
-import { MemoryJustBashFs, createJsSandbox } from "just-bash-secure-exec";
+import { MemoryJustBashFs, createJsSandbox } from "@jthieman/just-bash-secure-exec";
 
 export function createSessionShell(
   sessionFiles: Record<string, string | Uint8Array>,
@@ -100,7 +100,7 @@ export function createSessionShell(
 Use `createJsSandbox()` directly when you want to run code without going through Bash command parsing.
 
 ```ts
-import { createJsSandbox } from "just-bash-secure-exec";
+import { createJsSandbox } from "@jthieman/just-bash-secure-exec";
 
 const sandbox = createJsSandbox();
 
@@ -131,7 +131,7 @@ When you register `sandbox.createNodeCommand()` with a `Bash` instance, the comm
 
 ```ts
 import { Bash } from "just-bash";
-import { MemoryJustBashFs, createJsSandbox } from "just-bash-secure-exec";
+import { MemoryJustBashFs, createJsSandbox } from "@jthieman/just-bash-secure-exec";
 
 const fs = new MemoryJustBashFs({
   "/workspace/request.mjs": `

@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # npm dependencies, with a COOLDOWN so you never auto-adopt a version that
+  # was published minutes ago. This is the single control that would have
+  # blocked most 2025-2026 worms, which relied on being installed within the
+  # short window before a malicious version was yanked. Works alongside pnpm's
+  # own minimumReleaseAge for manual installs.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-minor-days: 3
+      semver-patch-days: 3
+    open-pull-requests-limit: 10
+
+  # Keep the SHA-pinned actions in release.yml current. Because the workflow
+  # pins to commit SHAs (not tags), Dependabot is how you receive vetted
+  # bumps instead of silently trusting a moved tag.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7

@@ -151,7 +151,7 @@ function isNotFound(e: any): boolean {
 
 // ---------------------------------------------------------------------------
 // S3MetadataStore — re-exported here so callers can do:
-//   import { S3BlobStore, S3MetadataStore } from "just-stash/s3";
+//   import { S3BlobStore, S3MetadataStore } from "@jthieman/just-stash/s3";
 // ---------------------------------------------------------------------------
 export { S3MetadataStore } from "./s3-metadata.ts";
 export type { S3MetadataStoreOptions } from "./s3-metadata.ts";

@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ready": "vp check && vp run -r test && vp run -r build"
+    "ready": "vp check && vp run -r test && vp run -r build",
+    "release:publish": "node scripts/release-publish.mjs"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.0",
     "vite-plus": "catalog:"
   },
   "engines": {

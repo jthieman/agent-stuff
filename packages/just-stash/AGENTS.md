@@ -117,8 +117,8 @@ If you're modifying `resolve()` or `resolveAllowLeafSymlink()`, re-read these te
 ## Common commands
 
 ```bash
-vp run just-stash#test
-vp run just-stash#build
+vp run @jthieman/just-stash#test
+vp run @jthieman/just-stash#build
 vp check
 ```
 
@@ -128,4 +128,4 @@ vp check
 - `SqliteStore` tests gracefully skip without `better-sqlite3` native bindings
 - Disk-based tests use `mkdtempSync` and clean up in `afterEach`
 - **Integration tests** live in `*.integration.test.ts` files and run as part of the normal test suite. They use `testcontainers` to spin up real Postgres (`postgres.integration.test.ts`), MinIO (`s3.integration.test.ts`), and Gitea (`gitea.integration.test.ts`). When adding a new store or backend that talks to external services, add a matching integration test rather than only a unit test against a fake — the fake's behavior can drift from reality.
-- Run with `vp run just-stash#test` for the full package suite or `vp run just-stash#test:integration` for the integration subset (requires Docker).
+- Run with `vp run @jthieman/just-stash#test` for the full package suite or `vp run @jthieman/just-stash#test:integration` for the integration subset (requires Docker).

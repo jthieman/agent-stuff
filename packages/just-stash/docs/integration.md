@@ -37,7 +37,7 @@ This is the most important distinction. Get it wrong and you'll either duplicate
 
 - The actual durable snapshots. Git backends use git commit OIDs. Blob backends store content-addressed archives and separate commit metadata, so identical content dedups automatically while each commit still has its own timeline id.
 - For S3-only, use a distinct `S3MetadataStore.prefix` per sandbox, e.g. `metadata/${sandboxId}/`. The `S3BlobStore` prefix may be shared when you want content dedup across sandboxes.
-- For Azure Blob, use `AzureBlobStore` from `just-stash/azure` with a prefix per reachability domain. Pair it with Postgres, SQLite, or another `MetadataStore`; Azure-backed metadata is intentionally separate.
+- For Azure Blob, use `AzureBlobStore` from `@jthieman/just-stash/azure` with a prefix per reachability domain. Pair it with Postgres, SQLite, or another `MetadataStore`; Azure-backed metadata is intentionally separate.
 - For S3 + Postgres, use one shared Postgres table set and one `PostgresMetadataStore` instance per sandbox with `namespace: sandboxId`. The `BlobBackend` stays single-timeline; Postgres does the physical namespacing internally.
 
 What you should **not** store in your app database:
@@ -79,7 +79,7 @@ Match it to a meaningful boundary in your agent loop. Common choices:
 
 - **After every turn** (`{ trigger: 'turn_end' }`) — what most agents want. Every user-visible state change is a snapshot you can roll back to.
 - **After every tool call** — finer-grained but expensive (full tree walk per commit).
-- **On explicit user signal** (`/snapshot` slash command via `just-stash/pi`) — for "save point" workflows.
+- **On explicit user signal** (`/snapshot` slash command via `@jthieman/just-stash/pi`) — for "save point" workflows.
 - **At session end only** — cheapest but loses intra-session rollback. Only viable if your agent doesn't need to undo mid-session.
 
 Use `commit()` when you intentionally want every boundary to create a history entry. Blob-backed commits dedup identical content, but a clean `commit()` still walks the tree and advances HEAD with a distinct commit id.
@@ -107,7 +107,7 @@ Rollback moves HEAD back to the target without deleting commit rows. The previou
 When you want to branch — try an alternative path, give two agents the same starting state, A/B test something. The destination is a separate sandbox with its own backend:
 
 ```typescript
-import { PersistentFs } from "just-stash";
+import { PersistentFs } from "@jthieman/just-stash";
 
 const original = await manager.acquire("alice");
 try {
@@ -300,7 +300,7 @@ Read them in that order. The Blob backend's logic (walk → archive → hash con
 
 When to actually reach for a custom backend:
 
-- **New storage system.** GCS with conditional puts, your-internal-storage-with-CAS — write a `BlobStore` + `MetadataStore` pair, use the existing `BlobBackend`. Almost never write a full backend from scratch. Azure Blob is already covered by `AzureBlobStore` in `just-stash/azure`.
+- **New storage system.** GCS with conditional puts, your-internal-storage-with-CAS — write a `BlobStore` + `MetadataStore` pair, use the existing `BlobBackend`. Almost never write a full backend from scratch. Azure Blob is already covered by `AzureBlobStore` in `@jthieman/just-stash/azure`.
 - **Specialized snapshot semantics.** E.g., per-file blobs instead of one tar archive (better for selective restore); structured-data backends that aren't just bytes.
 - **Different durability model.** E.g., a backend that uses synchronous replication across regions before commit returns.
 

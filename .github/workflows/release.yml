@@ -1,0 +1,74 @@
+name: release
+
+# Publishes @jthieman/* packages to npm using npm Trusted Publishing (OIDC).
+# No NPM_TOKEN is stored anywhere: auth is a short-lived, workflow-scoped
+# OIDC credential that cannot be exfiltrated or reused.
+#
+# Flow (via changesets/action):
+#   - Push to main WITH pending changesets  -> opens/updates a "Version Packages" PR.
+#   - Push to main WITHOUT pending changesets (i.e. that PR was merged)
+#                                            -> runs the `publish` command below.
+
+on:
+  push:
+    branches: [main]
+
+# Least-privilege by default. id-token: write is what lets GitHub mint the
+# OIDC token npm exchanges for a one-time publish credential.
+permissions:
+  contents: write # changesets: version-bump commits + git tags
+  pull-requests: write # changesets: the "Version Packages" PR
+  id-token: write # REQUIRED for OIDC trusted publishing + provenance
+
+# Serialize releases so two runs can't race the registry.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest # OIDC trusted publishing requires a cloud-hosted runner
+    # This name MUST match the "environment" you set in each package's
+    # Trusted Publisher config on npmjs.com. It also lets you add required
+    # reviewers / branch limits to the environment in GitHub settings.
+    environment: release
+    steps:
+      # Pin EVERY action to a full commit SHA, not a tag. A tag can be
+      # repointed at malicious code; a SHA cannot. Dependabot (see
+      # .github/dependabot.yml) will open PRs to bump these safely.
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Vite+ (installs Node, pnpm, deps)
+        uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb # v1
+        with:
+          node-version: "22" # >= 22.14 required for OIDC trusted publishing
+          cache: true
+          run-install: true # runs `vp install` against the committed lockfile
+          sfw: true # Socket Firewall: blocks known-malicious deps at install
+
+      - name: Build all packages
+        run: vp run -r build
+
+      # npm CLI is the reference implementation for OIDC trusted publishing.
+      # We deliberately route the *upload* through npm (>= 11.5.1) rather than
+      # pnpm/vp, because pnpm 11's OIDC publish path currently regresses (404).
+      # Pin the npm version instead of floating `@latest`. This is the most
+      # privileged tool in the pipeline (it exchanges the OIDC token and
+      # uploads the packages), so it must not silently adopt a freshly
+      # published npm. 11.5.1 is the documented, well-aged OIDC floor.
+      # Bump this deliberately after vetting a newer release (Dependabot does
+      # not track versions embedded in a `run:` step).
+      - name: Ensure OIDC-capable npm
+        run: npm install -g npm@11.5.1
+
+      - name: Version or publish
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          # Versioning is not auth-sensitive, so forwarding to pnpm is fine.
+          version: vp exec changeset version
+          # Publishing IS auth-sensitive -> our script uses `npm publish`.
+          publish: npm run release:publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No NPM_TOKEN on purpose. OIDC handles authentication.
