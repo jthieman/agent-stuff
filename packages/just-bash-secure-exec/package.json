@@ -46,7 +46,7 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "secure-exec": "^0.2.1"
+    "secure-exec": "^0.3.3"
   },
   "devDependencies": {
     "@types/node": "catalog:",
