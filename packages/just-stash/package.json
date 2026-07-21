@@ -87,7 +87,7 @@
     "better-sqlite3": "^11.0.0",
     "bumpp": "^11.1.0",
     "isomorphic-git": "^1.30.0",
-    "just-bash": "^3.0.1",
+    "just-bash": "^3.1.0",
     "pg": "catalog:",
     "testcontainers": "catalog:",
     "typescript": "catalog:",
