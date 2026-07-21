@@ -86,7 +86,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260509.2",
     "better-sqlite3": "^11.0.0",
     "bumpp": "^11.1.0",
-    "isomorphic-git": "^1.30.0",
+    "isomorphic-git": "^1.38.7",
     "just-bash": "^3.0.1",
     "pg": "catalog:",
     "testcontainers": "catalog:",
