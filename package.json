@@ -8,7 +8,7 @@
     "release:publish": "node scripts/release-publish.mjs"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.0",
+    "@changesets/cli": "^2.31.1",
     "vite-plus": "catalog:"
   },
   "engines": {
